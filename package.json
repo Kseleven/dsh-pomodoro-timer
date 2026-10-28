@@ -50,5 +50,9 @@
         "@deepseek-ai/dsh-client-ui-conversation"
       ]
     }
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   }
 }
