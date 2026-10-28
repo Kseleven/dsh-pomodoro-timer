@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Pomodoro Timer",
+    "description": "Runs a focus / short-break / long-break pomodoro timer below the composer, with a ring countdown and configurable durations."
+  }
+}

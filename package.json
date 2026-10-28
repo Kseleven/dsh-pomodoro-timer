@@ -1,0 +1,52 @@
+{
+  "name": "dsh-pomodoro-card",
+  "version": "1.0.0",
+  "description": "Pomodoro timer ambient widget for the DeepSeek Harness composer dock",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/YOUR_GITHUB/dsh-pomodoro-card",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YOUR_GITHUB/dsh-pomodoro-card.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_GITHUB/dsh-pomodoro-card/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "pomodoro",
+    "timer",
+    "productivity",
+    "ui"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "icon.png",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/run-tests.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-conversation"]
+    }
+  }
+}
