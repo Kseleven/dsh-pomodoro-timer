@@ -51,6 +51,7 @@ window.__ModuleLoader__.load({
       'action.reset': '重置本阶段',
       'action.skip': '跳过本阶段',
       'action.dismiss': '关闭提醒',
+      'action.testNotification': '发一条测试通知',
       'action.settings': '设置',
       'action.closeSettings': '收起设置',
       'action.status': '当前进度',
@@ -64,6 +65,10 @@ window.__ModuleLoader__.load({
       'settings.notify': '系统通知',
       'settings.notifyDenied': '通知权限已被拒绝，请在浏览器地址栏的站点设置中允许通知。',
       'settings.notifyUnsupported': '当前环境不支持系统通知。',
+      'settings.notifyState.unsupported': '当前环境不支持系统通知',
+      'settings.notifyState.granted': '系统通知已就绪',
+      'settings.notifyState.default': '系统通知尚未授权',
+      'settings.notifyState.denied': '系统通知已被拒绝',
       'settings.resetDefaults': '恢复默认',
       'settings.today': '今日完成',
       'unit.min': '分',
@@ -79,6 +84,8 @@ window.__ModuleLoader__.load({
       'notify.longBody': '完成一组番茄，去好好休息一会儿。',
       'notify.breakTitle': '休息结束',
       'notify.breakBody': '准备好开始下一个专注了吗？',
+      'notify.testTitle': '番茄时钟测试通知',
+      'notify.testBody': '看到这条通知，说明系统通知可以正常推送。',
     };
 
     const en = {
@@ -91,6 +98,7 @@ window.__ModuleLoader__.load({
       'action.reset': 'Reset phase',
       'action.skip': 'Skip phase',
       'action.dismiss': 'Dismiss reminder',
+      'action.testNotification': 'Send a test notification',
       'action.settings': 'Settings',
       'action.closeSettings': 'Hide settings',
       'action.status': 'Current progress',
@@ -104,6 +112,10 @@ window.__ModuleLoader__.load({
       'settings.notify': 'System notifications',
       'settings.notifyDenied': 'Notifications are blocked. Allow them in your browser site settings.',
       'settings.notifyUnsupported': 'System notifications are not supported here.',
+      'settings.notifyState.unsupported': 'System notifications unsupported',
+      'settings.notifyState.granted': 'System notifications ready',
+      'settings.notifyState.default': 'Notifications not authorized yet',
+      'settings.notifyState.denied': 'Notifications blocked',
       'settings.resetDefaults': 'Reset defaults',
       'settings.today': 'Completed today',
       'unit.min': 'min',
@@ -119,6 +131,8 @@ window.__ModuleLoader__.load({
       'notify.longBody': 'You finished a set — enjoy a longer break.',
       'notify.breakTitle': 'Break over',
       'notify.breakBody': 'Ready to start the next focus session?',
+      'notify.testTitle': 'Pomodoro test notification',
+      'notify.testBody': 'If you can see this, system notifications reach you.',
     };
 
     /* ------------------------------------------------------------------ */
@@ -598,6 +612,10 @@ window.__ModuleLoader__.load({
 .dsh-pomodoro__link{border:0;background:none;padding:0;font:inherit;font-size:10px;color:var(--dsw-alias-label-secondary);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .dsh-pomodoro__link:hover{color:var(--dsw-alias-label-primary)}
 .dsh-pomodoro__link:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px;border-radius:3px}
+.dsh-pomodoro__notify-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 8px;margin-top:9px;padding-top:7px;border-top:1px dashed var(--dsw-alias-border-l1)}
+.dsh-pomodoro__notify-state{font-size:10px;color:var(--dsw-alias-label-secondary)}
+.dsh-pomodoro__notify-state[data-state="granted"]{color:var(--dsw-alias-state-success-primary)}
+.dsh-pomodoro__notify-state[data-state="denied"]{color:var(--dsw-alias-state-error-primary)}
 .dsh-pomodoro__sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 @media (prefers-reduced-motion:reduce){.dsh-pomodoro *,.dsh-pomodoro *::before,.dsh-pomodoro *::after{transition:none!important;animation:none!important}}
 `;
@@ -790,6 +808,14 @@ window.__ModuleLoader__.load({
       }, [completion, seenAlert]);
 
       const settings = timer.settings;
+      const NotificationCtor = typeof window !== 'undefined' ? window.Notification : undefined;
+      const notificationState = !NotificationCtor
+        ? 'unsupported'
+        : NotificationCtor.permission === 'granted'
+          ? 'granted'
+          : NotificationCtor.permission === 'denied'
+            ? 'denied'
+            : 'default';
       const duration = durationOf(timer.phase, settings);
       const remaining = timer.running
         ? Math.max(0, (timer.endsAt == null ? timer.now : timer.endsAt) - timer.now)
@@ -963,6 +989,26 @@ window.__ModuleLoader__.load({
                 onChange: handleNotifyToggle,
               }),
             ),
+            h(
+              'div',
+              { className: 'dsh-pomodoro__notify-row' },
+              h(
+                'span',
+                { className: 'dsh-pomodoro__notify-state', 'data-state': notificationState },
+                t('settings.notifyState.' + notificationState),
+              ),
+              notificationState === 'unsupported'
+                ? null
+                : h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'dsh-pomodoro__link',
+                      onClick: handleTestNotification,
+                    },
+                    t('action.testNotification'),
+                  ),
+            ),
             notice ? h('p', { className: 'dsh-pomodoro__note', role: 'alert' }, notice) : null,
             h(
               'div',
@@ -1061,6 +1107,46 @@ window.__ModuleLoader__.load({
           } else {
             setNotice(t('settings.notifyDenied'));
           }
+        };
+        try {
+          const result = NotificationCtor.requestPermission(settle);
+          if (result && typeof result.then === 'function') {
+            result.then(settle, () => setNotice(t('settings.notifyDenied')));
+          }
+        } catch (err) {
+          setNotice(t('settings.notifyDenied'));
+        }
+      }
+
+      function handleTestNotification() {
+        const NotificationCtor = window.Notification;
+        if (!NotificationCtor) {
+          setNotice(t('settings.notifyUnsupported'));
+          return;
+        }
+        const fire = () => {
+          try {
+            new NotificationCtor(t('notify.testTitle'), {
+              body: t('notify.testBody'),
+              tag: 'dsh-pomodoro-test',
+              silent: true,
+            });
+            setNotice('');
+          } catch (err) {
+            setNotice(t('settings.notifyDenied'));
+          }
+        };
+        if (NotificationCtor.permission === 'granted') {
+          fire();
+          return;
+        }
+        if (NotificationCtor.permission === 'denied') {
+          setNotice(t('settings.notifyDenied'));
+          return;
+        }
+        const settle = (permission) => {
+          if (permission === 'granted') fire();
+          else setNotice(t('settings.notifyDenied'));
         };
         try {
           const result = NotificationCtor.requestPermission(settle);

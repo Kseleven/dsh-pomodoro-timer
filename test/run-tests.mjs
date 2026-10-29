@@ -784,6 +784,16 @@ test('notifications report an unsupported environment instead of enabling', () =
 
   const notifyLabel = findAll(tree, (node) => node.type === 'label' && textOf(node) === 'settings.notify')[0];
   assert.ok(notifyLabel, 'notification checkbox rendered');
+  assert.equal(
+    textOf(findByClass(tree, 'dsh-pomodoro__notify-state')),
+    'settings.notifyState.unsupported',
+    'readiness row explains the unsupported environment',
+  );
+  assert.equal(
+    findAll(tree, (node) => node.type === 'button' && textOf(node) === 'action.testNotification').length,
+    0,
+    'no test button without a Notification API',
+  );
   const notifyInput = findAll(notifyLabel, (node) => node.type === 'input')[0];
   notifyInput.props.onChange({ target: { checked: true } });
   assert.equal(env.api.state.settings.notify, false, 'must not enable without permission');
@@ -792,6 +802,38 @@ test('notifications report an unsupported environment instead of enabling', () =
   const notice = findAll(tree, (node) => node.props.role === 'alert')[0];
   assert.ok(notice);
   assert.equal(textOf(notice), 'settings.notifyUnsupported');
+});
+
+test('settings report notification readiness and can send a test notification', () => {
+  setClock(new RealDate(2026, 9, 28, 10, 30, 0));
+  const env = createEnv();
+  const sent = [];
+  function FakeNotification(title, options) {
+    sent.push({ title, options });
+  }
+  FakeNotification.permission = 'granted';
+  FakeNotification.requestPermission = () => Promise.resolve('granted');
+  env.window.Notification = FakeNotification;
+
+  const t = (key) => key;
+  let tree = env.render(env.api.PomodoroTimer, { t });
+  findButton(tree, 'action.settings').props.onClick();
+  tree = env.render(env.api.PomodoroTimer, { t });
+
+  assert.equal(
+    textOf(findByClass(tree, 'dsh-pomodoro__notify-state')),
+    'settings.notifyState.granted',
+  );
+  const testButton = findAll(
+    tree,
+    (node) => node.type === 'button' && textOf(node) === 'action.testNotification',
+  )[0];
+  assert.ok(testButton, 'test notification button rendered when notifications are available');
+  testButton.props.onClick();
+  assert.equal(sent.length, 1, 'one test notification sent');
+  assert.equal(sent[0].title, 'notify.testTitle');
+  assert.equal(sent[0].options.body, 'notify.testBody');
+  assert.equal(sent[0].options.tag, 'dsh-pomodoro-test');
 });
 
 test('completePhase is idempotent for focus increments per phase', () => {
