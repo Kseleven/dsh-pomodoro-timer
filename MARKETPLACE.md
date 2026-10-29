@@ -56,10 +56,10 @@ CI 会校验仓库确实声明了 `dsh.bundle`、仓库年龄、awesome-lint 和
 
 ## 截图（可选）
 
-在仓库根目录添加 `screenshots.json`，列出 1–8 张仓库内相对路径图片：
+仓库根目录已有 `screenshots.json`，列出 1–8 张仓库内相对路径图片，市场详情页会展示：
 
 ```json
-["screenshots/main.png"]
+["preview.png", "setting.png"]
 ```
 
 ## 注意
