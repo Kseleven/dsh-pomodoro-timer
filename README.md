@@ -44,6 +44,7 @@ pomodoro-timer/
 │   └── zh.json         # 插件市场上的中文标题 / 描述
 ├── icon.svg            # 插件图标（插件包）
 ├── icon.png            # 市场条目图标（GitHub 托管的 PNG）
+├── preview.png         # README 里的截图
 ├── test/
 │   └── run-tests.mjs   # 无浏览器 / 无 React 依赖的行为测试
 ├── LICENSE             # MIT
