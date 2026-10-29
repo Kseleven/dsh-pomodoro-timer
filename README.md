@@ -10,6 +10,10 @@ DeepSeek Harness 插件：在会话输入框下方的环境栏（`conversation.c
 截图里输入框下方那一条就是计时卡：左侧圆环显示剩余时间与开始/暂停状态，中间是阶段名和
 本轮循环进度，右侧是重置、跳过、设置三个按钮。
 
+点击右侧的 ⚙ 会打开设置面板，面板浮在计时卡上方，不占用对话区域：
+
+![设置面板：专注 / 休息时长、长休息间隔、自动开始、提示音、系统通知状态与测试按钮](setting.png)
+
 ## 功能
 
 - **三段循环**：专注 → 短休息 → 专注 …，每完成 4 个专注进入一次长休息（次数可调）。
@@ -44,7 +48,8 @@ pomodoro-timer/
 │   └── zh.json         # 插件市场上的中文标题 / 描述
 ├── icon.svg            # 插件图标（插件包）
 ├── icon.png            # 市场条目图标（GitHub 托管的 PNG）
-├── preview.png         # README 里的截图
+├── preview.png         # README 里的主截图
+├── setting.png         # README 里的设置面板截图
 ├── test/
 │   └── run-tests.mjs   # 无浏览器 / 无 React 依赖的行为测试
 ├── LICENSE             # MIT
