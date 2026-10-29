@@ -587,10 +587,16 @@ test('plugin registers the dock entry with translations', () => {
   const env = createEnv();
   const registrations = [];
   const effects = [];
+  const localeHandlers = [];
   const ctx = {
     effect(fn) {
       effects.push(fn);
       return fn();
+    },
+    on(event, handler) {
+      assert.equal(event, 'locale/change');
+      localeHandlers.push(handler);
+      return () => {};
     },
     locale: {
       register(namespace, dictionaries) {
@@ -627,6 +633,8 @@ test('plugin registers the dock entry with translations', () => {
   const injected = options.inject();
   assert.equal(typeof injected.t, 'function');
   assert.equal(component, env.api.PomodoroTimer);
+  assert.equal(localeHandlers.length, 1, 'locale changes refresh mounted widgets');
+  localeHandlers[0]();
   assert.ok(effects.length >= 2);
 });
 
@@ -834,6 +842,12 @@ test('settings report notification readiness and can send a test notification', 
   assert.equal(sent[0].title, 'notify.testTitle');
   assert.equal(sent[0].options.body, 'notify.testBody');
   assert.equal(sent[0].options.tag, 'dsh-pomodoro-test');
+
+  tree = env.render(env.api.PomodoroTimer, { t });
+  const confirmation = findAll(tree, (node) => node.props.role === 'alert')[0];
+  assert.ok(confirmation, 'inline confirmation after sending');
+  assert.equal(textOf(confirmation), 'settings.testSent');
+  assert.equal(confirmation.props['data-tone'], 'success');
 });
 
 test('completePhase is idempotent for focus increments per phase', () => {

@@ -69,6 +69,7 @@ window.__ModuleLoader__.load({
       'settings.notifyState.granted': '系统通知已就绪',
       'settings.notifyState.default': '系统通知尚未授权',
       'settings.notifyState.denied': '系统通知已被拒绝',
+      'settings.testSent': '已发送测试通知。若只在通知中心看到，请到「系统设置 → 通知 → DeepSeek Harness」把提醒样式改为「横幅」或「提醒」。',
       'settings.resetDefaults': '恢复默认',
       'settings.today': '今日完成',
       'unit.min': '分',
@@ -116,6 +117,7 @@ window.__ModuleLoader__.load({
       'settings.notifyState.granted': 'System notifications ready',
       'settings.notifyState.default': 'Notifications not authorized yet',
       'settings.notifyState.denied': 'Notifications blocked',
+      'settings.testSent': 'Test notification sent. If it only shows up in Notification Center, set DeepSeek Harness to Banners or Alerts in System Settings → Notifications.',
       'settings.resetDefaults': 'Reset defaults',
       'settings.today': 'Completed today',
       'unit.min': 'min',
@@ -608,6 +610,7 @@ window.__ModuleLoader__.load({
 .dsh-pomodoro__check{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--dsw-alias-label-secondary);cursor:pointer;user-select:none}
 .dsh-pomodoro__check input{width:13px;height:13px;margin:0;accent-color:var(--dsw-alias-brand-primary);cursor:pointer}
 .dsh-pomodoro__note{margin:7px 0 0;font-size:10.5px;line-height:1.35;color:var(--dsw-alias-state-warn-primary)}
+.dsh-pomodoro__note[data-tone="success"]{color:var(--dsw-alias-state-success-primary)}
 .dsh-pomodoro__footer{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;padding-top:8px;border-top:1px solid var(--dsw-alias-border-l1);font-size:10px;color:var(--dsw-alias-label-secondary)}
 .dsh-pomodoro__link{border:0;background:none;padding:0;font:inherit;font-size:10px;color:var(--dsw-alias-label-secondary);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .dsh-pomodoro__link:hover{color:var(--dsw-alias-label-primary)}
@@ -778,6 +781,11 @@ window.__ModuleLoader__.load({
       const timer = usePomodoro();
       const [settingsOpen, setSettingsOpen] = useState(false);
       const [notice, setNotice] = useState('');
+      const [noticeTone, setNoticeTone] = useState('warn');
+      const warn = (text) => {
+        setNotice(text);
+        setNoticeTone('warn');
+      };
       const [seenAlert, setSeenAlert] = useState(() => {
         const current = snapshot().completion;
         return current ? current.seq : 0;
@@ -1009,7 +1017,17 @@ window.__ModuleLoader__.load({
                     t('action.testNotification'),
                   ),
             ),
-            notice ? h('p', { className: 'dsh-pomodoro__note', role: 'alert' }, notice) : null,
+            notice
+              ? h(
+                  'p',
+                  {
+                    className: 'dsh-pomodoro__note',
+                    role: 'alert',
+                    'data-tone': noticeTone,
+                  },
+                  notice,
+                )
+              : null,
             h(
               'div',
               { className: 'dsh-pomodoro__footer' },
@@ -1073,9 +1091,9 @@ window.__ModuleLoader__.load({
               if (settings.sound) primeAudio();
             },
           },
-          main,
-          alertNode,
           settingsPanel,
+          alertNode,
+          main,
           h('span', { className: 'dsh-pomodoro__sr', role: 'status', 'aria-live': 'polite' }, statusText),
         ),
       );
@@ -1088,7 +1106,7 @@ window.__ModuleLoader__.load({
         }
         const NotificationCtor = window.Notification;
         if (!NotificationCtor) {
-          setNotice(t('settings.notifyUnsupported'));
+          warn(t('settings.notifyUnsupported'));
           return;
         }
         if (NotificationCtor.permission === 'granted') {
@@ -1097,7 +1115,7 @@ window.__ModuleLoader__.load({
           return;
         }
         if (NotificationCtor.permission === 'denied') {
-          setNotice(t('settings.notifyDenied'));
+          warn(t('settings.notifyDenied'));
           return;
         }
         const settle = (permission) => {
@@ -1105,23 +1123,23 @@ window.__ModuleLoader__.load({
             updateSettings('notify', true);
             setNotice('');
           } else {
-            setNotice(t('settings.notifyDenied'));
+            warn(t('settings.notifyDenied'));
           }
         };
         try {
           const result = NotificationCtor.requestPermission(settle);
           if (result && typeof result.then === 'function') {
-            result.then(settle, () => setNotice(t('settings.notifyDenied')));
+            result.then(settle, () => warn(t('settings.notifyDenied')));
           }
         } catch (err) {
-          setNotice(t('settings.notifyDenied'));
+          warn(t('settings.notifyDenied'));
         }
       }
 
       function handleTestNotification() {
         const NotificationCtor = window.Notification;
         if (!NotificationCtor) {
-          setNotice(t('settings.notifyUnsupported'));
+          warn(t('settings.notifyUnsupported'));
           return;
         }
         const fire = () => {
@@ -1131,9 +1149,10 @@ window.__ModuleLoader__.load({
               tag: 'dsh-pomodoro-test',
               silent: true,
             });
-            setNotice('');
+            setNotice(t('settings.testSent'));
+            setNoticeTone('success');
           } catch (err) {
-            setNotice(t('settings.notifyDenied'));
+            warn(t('settings.notifyDenied'));
           }
         };
         if (NotificationCtor.permission === 'granted') {
@@ -1141,20 +1160,20 @@ window.__ModuleLoader__.load({
           return;
         }
         if (NotificationCtor.permission === 'denied') {
-          setNotice(t('settings.notifyDenied'));
+          warn(t('settings.notifyDenied'));
           return;
         }
         const settle = (permission) => {
           if (permission === 'granted') fire();
-          else setNotice(t('settings.notifyDenied'));
+          else warn(t('settings.notifyDenied'));
         };
         try {
           const result = NotificationCtor.requestPermission(settle);
           if (result && typeof result.then === 'function') {
-            result.then(settle, () => setNotice(t('settings.notifyDenied')));
+            result.then(settle, () => warn(t('settings.notifyDenied')));
           }
         } catch (err) {
-          setNotice(t('settings.notifyDenied'));
+          warn(t('settings.notifyDenied'));
         }
       }
     }
@@ -1170,6 +1189,10 @@ window.__ModuleLoader__.load({
         const t = ctx.locale.bind(NS);
         setTranslator(t);
         ctx.effect(() => () => setTranslator(null), 'pomodoro-timer: translator');
+        ctx.effect(() => {
+          if (typeof ctx.on !== 'function') return undefined;
+          return ctx.on('locale/change', () => emit());
+        }, 'pomodoro-timer: locale refresh');
 
         ctx.slots.inject('conversation.composer.dock', function* () {
           yield ctx.slots.register(
