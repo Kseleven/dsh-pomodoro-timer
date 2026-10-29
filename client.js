@@ -50,6 +50,7 @@ window.__ModuleLoader__.load({
       'action.resume': '继续',
       'action.reset': '重置本阶段',
       'action.skip': '跳过本阶段',
+      'action.dismiss': '关闭提醒',
       'action.settings': '设置',
       'action.closeSettings': '收起设置',
       'action.status': '当前进度',
@@ -68,6 +69,11 @@ window.__ModuleLoader__.load({
       'unit.min': '分',
       'unit.pomodoro': '个',
       'status.current': '当前进度：{phase}，剩余 {time}',
+      'alert.focusDone': '专注结束',
+      'alert.breakDone': '休息结束',
+      'alert.next': '下一步：{phase} {minutes} 分',
+      'alert.autoStarted': '已自动开始',
+      'alert.waiting': '已暂停，点开始继续',
       'notify.focusTitle': '专注完成',
       'notify.shortBody': '休息一下，喝口水吧。',
       'notify.longBody': '完成一组番茄，去好好休息一会儿。',
@@ -84,6 +90,7 @@ window.__ModuleLoader__.load({
       'action.resume': 'Resume',
       'action.reset': 'Reset phase',
       'action.skip': 'Skip phase',
+      'action.dismiss': 'Dismiss reminder',
       'action.settings': 'Settings',
       'action.closeSettings': 'Hide settings',
       'action.status': 'Current progress',
@@ -102,6 +109,11 @@ window.__ModuleLoader__.load({
       'unit.min': 'min',
       'unit.pomodoro': 'pom',
       'status.current': 'Current progress: {phase}, {time} remaining',
+      'alert.focusDone': 'Focus complete',
+      'alert.breakDone': 'Break over',
+      'alert.next': 'Next: {phase}, {minutes} min',
+      'alert.autoStarted': 'started automatically',
+      'alert.waiting': 'paused — press start to go on',
       'notify.focusTitle': 'Focus complete',
       'notify.shortBody': 'Take a short break — stretch and hydrate.',
       'notify.longBody': 'You finished a set — enjoy a longer break.',
@@ -119,6 +131,7 @@ window.__ModuleLoader__.load({
     let ticker = null;
     let lastSecond = null;
     let audioCtx = null;
+    let audioUnlockArmed = false;
     const listeners = new Set();
 
     function clampInt(value, min, max, fallback) {
@@ -300,6 +313,15 @@ window.__ModuleLoader__.load({
         : 'focus';
       const duration = durationOf(nextPhase, s.settings);
       const autoStart = s.settings.autoStart;
+      const completion = silent
+        ? s.completion
+        : {
+            seq: (s.completion ? s.completion.seq : 0) + 1,
+            wasFocus,
+            nextPhase,
+            autoStart,
+            at: Date.now(),
+          };
 
       state = {
         ...s,
@@ -309,6 +331,7 @@ window.__ModuleLoader__.load({
         remainingMs: duration,
         endsAt: autoStart ? Date.now() + duration : null,
         running: autoStart,
+        completion,
       };
       stopTicker();
       lastSecond = null;
@@ -318,8 +341,7 @@ window.__ModuleLoader__.load({
 
       if (silent) return;
       if (s.settings.sound) playChime(wasFocus ? 'focusDone' : 'breakDone');
-      if (s.settings.notify) showNotification(wasFocus, nextPhase);
-    }
+      if (s.settings.notify) showNotification(wasFocus, nextPhase);    }
 
     function start() {
       if (state.running) {
@@ -329,7 +351,10 @@ window.__ModuleLoader__.load({
       const duration = durationOf(state.phase, state.settings);
       const remaining =
         state.remainingMs > 0 && state.remainingMs <= duration ? state.remainingMs : duration;
-      if (state.settings.sound) primeAudio();
+      if (state.settings.sound) {
+        primeAudio();
+        armAudioUnlock();
+      }
       state = {
         ...state,
         running: true,
@@ -375,6 +400,10 @@ window.__ModuleLoader__.load({
         ? clampInt(value, LIMITS[key][0], LIMITS[key][1], DEFAULT_SETTINGS[key])
         : Boolean(value);
       const settings = { ...state.settings, [key]: next };
+      if (key === 'sound' && next) {
+        primeAudio();
+        armAudioUnlock();
+      }
       const remainingMs = state.running
         ? state.remainingMs
         : durationOf(state.phase, settings);
@@ -404,10 +433,47 @@ window.__ModuleLoader__.load({
         const Ctx = window.AudioContext || window.webkitAudioContext;
         if (!Ctx) return;
         if (!audioCtx) audioCtx = new Ctx();
-        if (audioCtx.state === 'suspended') void audioCtx.resume();
+        if (audioCtx.state === 'suspended') {
+          const resumed = audioCtx.resume();
+          if (resumed && typeof resumed.then === 'function') {
+            resumed.then(() => {}, () => {});
+          }
+        }
       } catch (err) {
         /* No Web Audio (or blocked); stay silent. */
       }
+    }
+
+    /*
+     * Browsers only unlock audio inside a user gesture. If the page was
+     * reloaded while a phase was running, the next completion would be
+     * silent, so keep a one-shot page-wide gesture listener armed and
+     * prime the shared AudioContext on the first click/key press.
+     */
+    function disarmAudioUnlock() {
+      if (!audioUnlockArmed) return;
+      audioUnlockArmed = false;
+      if (typeof document === 'undefined') return;
+      document.removeEventListener('pointerdown', unlockAudio, true);
+      document.removeEventListener('keydown', unlockAudio, true);
+    }
+
+    function unlockAudio() {
+      primeAudio();
+      window.setTimeout(() => {
+        if (audioCtx && audioCtx.state === 'running') disarmAudioUnlock();
+      }, 150);
+    }
+
+    function armAudioUnlock() {
+      if (audioUnlockArmed) return;
+      if (typeof document === 'undefined' || typeof window === 'undefined') return;
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (audioCtx && audioCtx.state === 'running') return;
+      audioUnlockArmed = true;
+      document.addEventListener('pointerdown', unlockAudio, true);
+      document.addEventListener('keydown', unlockAudio, true);
     }
 
     function playChime(kind) {
@@ -416,6 +482,7 @@ window.__ModuleLoader__.load({
         if (!Ctx) return;
         if (!audioCtx) audioCtx = new Ctx();
         if (audioCtx.state === 'suspended') void audioCtx.resume();
+        if (audioCtx.state !== 'running') armAudioUnlock();
         const startAt = audioCtx.currentTime + 0.02;
         const notes =
           kind === 'focusDone' ? [659.25, 783.99, 1046.5] : [783.99, 659.25, 523.25];
@@ -476,6 +543,7 @@ window.__ModuleLoader__.load({
       completePhase({ silent: true });
     } else if (state.running) {
       ensureTicker();
+      if (state.settings.sound) armAudioUnlock();
     }
 
     /* ------------------------------------------------------------------ */
@@ -488,6 +556,13 @@ window.__ModuleLoader__.load({
 .dsh-pomodoro[data-phase="long"]{--pp-accent:#3b82f6}
 .dsh-pomodoro__main{display:flex;align-items:center;gap:8px;padding:2px 4px 2px 2px;border-radius:12px;transition:background .15s ease}
 .dsh-pomodoro__main:hover{background:var(--dsw-alias-bg-layer-2)}
+.dsh-pomodoro__alert{display:flex;align-items:flex-start;gap:7px;margin:3px 2px 1px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l1);border-left:2px solid var(--pp-accent);border-radius:9px;background:var(--dsw-alias-bg-layer-2);animation:dsh-pomodoro-alert-in .16s ease}
+.dsh-pomodoro__alert-text{flex:1;min-width:0;font-size:10.5px;line-height:1.35;color:var(--dsw-alias-label-secondary)}
+.dsh-pomodoro__alert-text strong{margin-right:4px;font-weight:600;color:var(--pp-accent)}
+.dsh-pomodoro__alert-close{flex:none;display:grid;place-items:center;width:18px;height:18px;padding:0;border:0;border-radius:6px;background:none;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:1;cursor:pointer}
+.dsh-pomodoro__alert-close:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
+.dsh-pomodoro__alert-close:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:0}
+@keyframes dsh-pomodoro-alert-in{from{opacity:0;transform:translateY(-2px)}to{opacity:1;transform:none}}
 .dsh-pomodoro__ring{position:relative;flex:none;display:grid;place-items:center;width:36px;height:36px;padding:0;border:0;border-radius:50%;background:none;color:var(--pp-accent);cursor:pointer;transition:background .15s ease}
 .dsh-pomodoro__ring:hover{background:var(--dsw-alias-bg-layer-2)}
 .dsh-pomodoro__ring:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
@@ -685,6 +760,10 @@ window.__ModuleLoader__.load({
       const timer = usePomodoro();
       const [settingsOpen, setSettingsOpen] = useState(false);
       const [notice, setNotice] = useState('');
+      const [seenAlert, setSeenAlert] = useState(() => {
+        const current = snapshot().completion;
+        return current ? current.seq : 0;
+      });
       const uidRef = useRef(null);
       if (uidRef.current === null) {
         uidRef.current = 'dsh-pomodoro-' + Math.random().toString(36).slice(2, 8);
@@ -702,6 +781,13 @@ window.__ModuleLoader__.load({
         document.addEventListener('keydown', onKeyDown);
         return () => document.removeEventListener('keydown', onKeyDown);
       }, [settingsOpen]);
+
+      const completion = timer.completion;
+      useEffect(() => {
+        if (!completion || completion.seq === seenAlert) return undefined;
+        const handle = window.setTimeout(() => setSeenAlert(completion.seq), 10000);
+        return () => window.clearTimeout(handle);
+      }, [completion, seenAlert]);
 
       const settings = timer.settings;
       const duration = durationOf(timer.phase, settings);
@@ -891,6 +977,39 @@ window.__ModuleLoader__.load({
           )
         : null;
 
+      const alertNode =
+        completion && completion.seq !== seenAlert
+          ? h(
+              'div',
+              { className: 'dsh-pomodoro__alert', role: 'status', 'aria-live': 'polite' },
+              h(
+                'span',
+                { className: 'dsh-pomodoro__alert-text' },
+                h(
+                  'strong',
+                  {},
+                  t(completion.wasFocus ? 'alert.focusDone' : 'alert.breakDone'),
+                ),
+                t('alert.next')
+                  .replace('{phase}', t('phase.' + completion.nextPhase))
+                  .replace('{minutes}', String(settings[completion.nextPhase])) +
+                  ' · ' +
+                  t(completion.autoStart ? 'alert.autoStarted' : 'alert.waiting'),
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dsh-pomodoro__alert-close',
+                  title: t('action.dismiss'),
+                  'aria-label': t('action.dismiss'),
+                  onClick: () => setSeenAlert(completion.seq),
+                },
+                '×',
+              ),
+            )
+          : null;
+
       const statusText = t('status.current')
         .replace('{phase}', phaseLabel)
         .replace('{time}', settings[timer.phase] + ' ' + t('unit.min'));
@@ -901,8 +1020,15 @@ window.__ModuleLoader__.load({
         h('style', { 'data-dsh-pomodoro': '' }, CSS),
         h(
           'div',
-          { className: 'dsh-pomodoro', 'data-phase': timer.phase },
+          {
+            className: 'dsh-pomodoro',
+            'data-phase': timer.phase,
+            onPointerDownCapture: () => {
+              if (settings.sound) primeAudio();
+            },
+          },
           main,
+          alertNode,
           settingsPanel,
           h('span', { className: 'dsh-pomodoro__sr', role: 'status', 'aria-live': 'polite' }, statusText),
         ),

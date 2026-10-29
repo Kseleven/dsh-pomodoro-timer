@@ -734,6 +734,44 @@ test('component starts, counts down and reports the next phase', () => {
   assert.equal(env.api.state.running, true);
 });
 
+test('component announces phase completion and lets the reminder be dismissed', () => {
+  setClock(new RealDate(2026, 9, 28, 10, 30, 0));
+  const env = createEnv();
+  const t = (key) => key;
+  const Component = env.api.PomodoroTimer;
+
+  let tree = env.render(Component, { t });
+  assert.ok(findByClass(tree, 'dsh-pomodoro__alert') === null, 'no reminder before completion');
+
+  findButton(tree, 'action.start').props.onClick();
+  clock = env.api.state.endsAt;
+  env.pumpTimers();
+  tree = env.render(Component, { t });
+
+  const alert = findByClass(tree, 'dsh-pomodoro__alert');
+  assert.ok(alert, 'reminder appears when the phase ends');
+  assert.equal(alert.props.role, 'status');
+  const alertText = textOf(alert);
+  assert.ok(alertText.includes('alert.focusDone'), 'focus completion announced: ' + alertText);
+  assert.ok(alertText.includes('alert.next'), 'next phase announced');
+  assert.ok(alertText.includes('alert.autoStarted'), 'auto-start mentioned');
+  assert.equal(env.api.state.completion.wasFocus, true);
+  assert.equal(env.api.state.running, true);
+  assert.equal(env.api.state.phase, 'short');
+
+  findButton(tree, 'action.dismiss').props.onClick();
+  tree = env.render(Component, { t });
+  assert.ok(findByClass(tree, 'dsh-pomodoro__alert') === null, 'reminder dismissed');
+
+  // A paused hand-off is explained too (autoStart off).
+  env.api.updateSettings('autoStart', false);
+  clock = env.api.state.endsAt;
+  env.pumpTimers();
+  tree = env.render(Component, { t });
+  assert.equal(env.api.state.running, false);
+  assert.ok(textOf(findByClass(tree, 'dsh-pomodoro__alert')).includes('alert.waiting'));
+});
+
 test('notifications report an unsupported environment instead of enabling', () => {
   setClock(new RealDate(2026, 9, 28, 10, 30, 0));
   const env = createEnv();
