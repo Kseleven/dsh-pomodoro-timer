@@ -33,6 +33,7 @@
     "locale/*.json",
     "icon.svg",
     "icon.png",
+    "preview.png",
     "README.md",
     "LICENSE"
   ],

@@ -596,8 +596,8 @@ window.__ModuleLoader__.load({
 .dsh-pomodoro__iconbtn:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .dsh-pomodoro__iconbtn[data-active="true"]{color:var(--pp-accent)}
 .dsh-pomodoro__iconbtn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:0}
-.dsh-pomodoro__settings{box-sizing:border-box;width:258px;max-width:calc(100vw - 24px);margin:6px 0 2px;padding:10px 11px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);box-shadow:0 6px 20px rgba(0,0,0,.1);animation:dsh-pomodoro-in .14s ease}
-@keyframes dsh-pomodoro-in{from{opacity:0;transform:translateY(-2px)}to{opacity:1;transform:none}}
+.dsh-pomodoro__settings{position:absolute;right:0;bottom:calc(100% + 8px);z-index:40;box-sizing:border-box;width:258px;max-width:calc(100vw - 24px);margin:0;padding:10px 11px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);box-shadow:0 12px 32px rgba(0,0,0,.22);animation:dsh-pomodoro-pop .14s ease}
+@keyframes dsh-pomodoro-pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .dsh-pomodoro__grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
 .dsh-pomodoro__field{display:flex;flex-direction:column;gap:3px;min-width:0}
 .dsh-pomodoro__field-label{font-size:10px;color:var(--dsw-alias-label-secondary);letter-spacing:.01em}
@@ -791,6 +791,7 @@ window.__ModuleLoader__.load({
         return current ? current.seq : 0;
       });
       const uidRef = useRef(null);
+      const rootRef = useRef(null);
       if (uidRef.current === null) {
         uidRef.current = 'dsh-pomodoro-' + Math.random().toString(36).slice(2, 8);
       }
@@ -806,6 +807,19 @@ window.__ModuleLoader__.load({
         };
         document.addEventListener('keydown', onKeyDown);
         return () => document.removeEventListener('keydown', onKeyDown);
+      }, [settingsOpen]);
+
+      useEffect(() => {
+        if (!settingsOpen) return undefined;
+        const onPointerDown = (event) => {
+          const root = rootRef.current;
+          if (!root) return;
+          const target = event && event.target;
+          if (target && typeof root.contains === 'function' && root.contains(target)) return;
+          setSettingsOpen(false);
+        };
+        document.addEventListener('pointerdown', onPointerDown, true);
+        return () => document.removeEventListener('pointerdown', onPointerDown, true);
       }, [settingsOpen]);
 
       const completion = timer.completion;
@@ -1087,6 +1101,7 @@ window.__ModuleLoader__.load({
           {
             className: 'dsh-pomodoro',
             'data-phase': timer.phase,
+            ref: rootRef,
             onPointerDownCapture: () => {
               if (settings.sound) primeAudio();
             },
